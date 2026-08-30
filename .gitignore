@@ -85,5 +85,5 @@ logs/
 .DS_Store
 Thumbs.db
 
-# --- Claude / local notes ---
-CLAUDE.md
+# --- Project notes ---
+PROJECT_NOTES.md

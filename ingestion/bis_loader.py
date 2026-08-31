@@ -26,9 +26,15 @@ MAX_RETRIES = 3
 BACKOFF_FACTOR = 2.0
 REQUEST_TIMEOUT = 30
 
-# dataset_id -> download URL
+# dataset_id -> download URL (BIS Data Portal bulk downloads, "columnar" CSV: one
+# row per series, one column per time period)
 DATASETS = {
-    "BIS_FX_OTC": os.getenv("BIS_DATA_URL", "https://www.bis.org/statistics/full_bis_oidfx_csv.zip"),
+    "BIS_OTC_DERIV": os.getenv(
+        "BIS_OTC_DERIV_URL", "https://data.bis.org/static/bulk/WS_OTC_DERIV2_csv_col.zip"
+    ),
+    "BIS_FX_TURNOVER": os.getenv(
+        "BIS_FX_TURNOVER_URL", "https://data.bis.org/static/bulk/WS_DER_OTC_TOV_csv_col.zip"
+    ),
 }
 
 PERIOD_COLUMN_PATTERN = re.compile(
@@ -128,20 +134,24 @@ def _extract_csv(content: bytes) -> str:
 
 
 def _reshape_to_long(df: pd.DataFrame, dataset_id: str) -> pd.DataFrame:
-    """Melt a wide BIS CSV (id columns + one column per period) into long format."""
+    """Melt a wide BIS CSV (one row per series, one column per period) into long format.
+
+    The BIS "columnar" bulk export already carries a 'Series' column holding a
+    colon-delimited code that uniquely identifies each series (all dimension
+    codes joined), so it is used directly as series_id instead of being rebuilt
+    from the individual dimension columns.
+    """
     period_columns = [col for col in df.columns if PERIOD_COLUMN_PATTERN.match(str(col).strip())]
     if not period_columns:
         raise ValueError(f"No period-like columns found in BIS dataset {dataset_id}")
-    id_columns = [col for col in df.columns if col not in period_columns]
+    if "Series" not in df.columns:
+        raise ValueError(f"Expected a 'Series' identifier column in BIS dataset {dataset_id}")
 
     long_df = df.melt(
-        id_vars=id_columns, value_vars=period_columns, var_name="period", value_name="value"
-    )
+        id_vars=["Series"], value_vars=period_columns, var_name="period", value_name="value"
+    ).rename(columns={"Series": "series_id"})
     long_df["date"] = long_df["period"].apply(_period_to_date)
     long_df["value"] = pd.to_numeric(long_df["value"], errors="coerce")
-    long_df["series_id"] = (
-        long_df[id_columns].astype(str).agg("_".join, axis=1) if id_columns else dataset_id
-    )
     return (
         long_df[["date", "value", "series_id"]]
         .dropna(subset=["date", "value"])

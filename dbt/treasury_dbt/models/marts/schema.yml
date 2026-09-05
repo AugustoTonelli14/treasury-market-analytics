@@ -1,0 +1,67 @@
+version: 2
+
+models:
+  - name: fx_analytics_mart
+    description: >
+      FX spot rates with daily/weekly/monthly changes, daily returns, and
+      30-day rolling volatility, one row per series per date. Built on top
+      of stg_fx_rates — note DEXUSEU and EURUSD_SPOT both represent USD/EUR
+      as distinct series_id values, not merged here.
+    columns:
+      - name: fx_rate_id
+        description: Surrogate key (series_id + rate_date), inherited from stg_fx_rates.
+        tests:
+          - unique
+          - not_null
+      - name: rate_date
+        description: Calendar date of the observation.
+        tests:
+          - not_null
+      - name: series_id
+        description: Source series identifier (e.g. DEXUSEU).
+        tests:
+          - not_null
+      - name: series_name
+        description: Human-readable series name.
+      - name: currency
+        description: Quote currency of the FX pair.
+      - name: source
+        description: Origin system of the series (fred | ecb | bis).
+      - name: spot_rate
+        description: FX rate observed on rate_date.
+        tests:
+          - not_null
+      - name: change_1d
+        description: Absolute change vs. the previous business day.
+      - name: change_1w
+        description: Absolute change vs. ~5 business days before.
+      - name: change_1m
+        description: Absolute change vs. ~21 business days before.
+      - name: daily_return
+        description: Percentage change vs. the previous business day (null on each series' first observation).
+      - name: rolling_volatility_30d
+        description: >
+          Sample standard deviation of daily_return over the trailing 30
+          observations (null until 2 observations exist for the series).
+
+  - name: yield_curve_mart
+    description: >
+      US Treasury yield curve by date, pivoted from stg_yield_curve (1 row
+      per date instead of per series/date), with the 2Y-10Y spread and an
+      inversion flag.
+    columns:
+      - name: rate_date
+        description: Calendar date of the yield curve snapshot.
+        tests:
+          - unique
+          - not_null
+      - name: yield_1m
+        description: US 1-Month Treasury yield (DGS1MO) on rate_date.
+      - name: yield_2y
+        description: US 2-Year Treasury yield (DGS2) on rate_date.
+      - name: yield_10y
+        description: US 10-Year Treasury yield (DGS10) on rate_date.
+      - name: spread_2y_10y
+        description: yield_10y minus yield_2y, in percentage points.
+      - name: is_inverted
+        description: True when spread_2y_10y is negative (2Y yield above 10Y yield).

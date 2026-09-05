@@ -42,7 +42,10 @@ models:
       - name: rolling_volatility_30d
         description: >
           Sample standard deviation of daily_return over the trailing 30
-          observations (null until 2 observations exist for the series).
+          observations. Null until a full 30-observation window of
+          non-null daily_return values exists for the series (i.e. the
+          first ~31 rows of each series), to avoid reporting "30-day"
+          volatility computed off a handful of points.
 
   - name: yield_curve_mart
     description: >
@@ -64,4 +67,7 @@ models:
       - name: spread_2y_10y
         description: yield_10y minus yield_2y, in percentage points.
       - name: is_inverted
-        description: True when spread_2y_10y is negative (2Y yield above 10Y yield).
+        description: >
+          True when spread_2y_10y is negative (2Y yield above 10Y yield),
+          false when non-negative, null when yield_2y or yield_10y is
+          missing on that date (no maturity observation that day).

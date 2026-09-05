@@ -1,0 +1,12 @@
+treasury_dbt:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      # DUCKDB_PATH is defined relative to the project root (see .env.example).
+      # dbt runs from dbt/treasury_dbt (see Makefile's dbt-run target), so the
+      # default here goes up two levels to reach the same outputs/treasury.duckdb
+      # file built by modeling/model.py.
+      path: "{{ env_var('DUCKDB_PATH', '../../outputs/treasury.duckdb') }}"
+      schema: main
+      threads: 4

@@ -1,0 +1,119 @@
+version: 2
+
+sources:
+  - name: star_schema
+    schema: main
+    description: >
+      Dimensional star schema built by modeling/model.py from the cleaned
+      Parquet series in data/processed/ and loaded into DuckDB.
+    tables:
+      - name: fact_market_rates
+        description: One row per series per date, with derived 1d/1w/1m changes.
+      - name: dim_series
+        description: Series catalog (id, name, category, currency, source).
+      - name: dim_date
+        description: Calendar dimension keyed by date_key (YYYYMMDD).
+
+models:
+  - name: stg_fx_rates
+    description: Normalized FX rates (USD/EUR, USD/JPY, USD/BRL) from the star schema.
+    columns:
+      - name: fx_rate_id
+        description: Surrogate key (series_id + rate_date).
+        tests:
+          - unique
+          - not_null
+      - name: rate_date
+        description: Calendar date of the observation.
+        tests:
+          - not_null
+      - name: series_id
+        description: Source series identifier (e.g. DEXUSEU).
+        tests:
+          - not_null
+      - name: series_name
+        description: Human-readable series name.
+      - name: currency
+        description: Quote currency of the FX pair.
+      - name: source
+        description: Origin system of the series (fred | ecb | bis).
+      - name: value
+        description: FX rate observed on rate_date.
+        tests:
+          - not_null
+      - name: change_1d
+        description: Absolute change vs. the previous business day.
+      - name: change_1w
+        description: Absolute change vs. ~5 business days before.
+      - name: change_1m
+        description: Absolute change vs. ~21 business days before.
+
+  - name: stg_interest_rates
+    description: Normalized policy and interbank rates (Fed Funds, Euribor, ECB Deposit Rate).
+    columns:
+      - name: interest_rate_id
+        description: Surrogate key (series_id + rate_date).
+        tests:
+          - unique
+          - not_null
+      - name: rate_date
+        description: Calendar date of the observation.
+        tests:
+          - not_null
+      - name: series_id
+        description: Source series identifier (e.g. FEDFUNDS).
+        tests:
+          - not_null
+      - name: series_name
+        description: Human-readable series name.
+      - name: currency
+        description: Currency the rate is denominated in.
+      - name: source
+        description: Origin system of the series (fred | ecb | bis).
+      - name: value
+        description: Rate observed on rate_date, in percent.
+        tests:
+          - not_null
+      - name: change_1d
+        description: Absolute change vs. the previous business day.
+      - name: change_1w
+        description: Absolute change vs. ~5 business days before.
+      - name: change_1m
+        description: Absolute change vs. ~21 business days before.
+
+  - name: stg_yield_curve
+    description: Normalized US Treasury yields by maturity (1M, 2Y, 10Y).
+    columns:
+      - name: yield_curve_id
+        description: Surrogate key (series_id + rate_date).
+        tests:
+          - unique
+          - not_null
+      - name: rate_date
+        description: Calendar date of the observation.
+        tests:
+          - not_null
+      - name: series_id
+        description: Source series identifier (e.g. DGS10).
+        tests:
+          - not_null
+      - name: series_name
+        description: Human-readable series name.
+      - name: maturity
+        description: Maturity label derived from series_id (1M | 2Y | 10Y).
+        tests:
+          - not_null
+      - name: currency
+        description: Currency the yield is denominated in.
+      - name: source
+        description: Origin system of the series (fred | ecb | bis).
+      - name: value
+        description: Yield observed on rate_date, in percent.
+        tests:
+          - not_null
+      - name: change_1d
+        description: Absolute change vs. the previous business day.
+      - name: change_1w
+        description: Absolute change vs. ~5 business days before.
+      - name: change_1m
+        description: Absolute change vs. ~21 business days before.

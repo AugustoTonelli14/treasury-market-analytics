@@ -16,6 +16,9 @@ select
     dates.full_date as rate_date,
     series.series_id,
     series.series_name,
+    -- Mirrors SERIES_CATALOG in modeling/model.py: adding a new yield series
+    -- there requires adding it here too, or maturity falls through to NULL
+    -- and fails the not_null test on this column.
     case series.series_id
         when 'DGS1MO' then '1M'
         when 'DGS2' then '2Y'

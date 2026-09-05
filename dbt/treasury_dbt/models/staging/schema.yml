@@ -16,7 +16,11 @@ sources:
 
 models:
   - name: stg_fx_rates
-    description: Normalized FX rates (USD/EUR, USD/JPY, USD/BRL) from the star schema.
+    description: >
+      Normalized FX rates (USD/EUR, USD/JPY, USD/BRL, EUR/USD) from the star
+      schema. Note DEXUSEU (FRED) and EURUSD_SPOT (ECB) both represent
+      USD/EUR and are not deduplicated here — downstream marts must pick a
+      canonical source or expose both explicitly.
     columns:
       - name: fx_rate_id
         description: Surrogate key (series_id + rate_date).

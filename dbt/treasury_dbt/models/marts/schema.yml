@@ -71,3 +71,25 @@ models:
           True when spread_2y_10y is negative (2Y yield above 10Y yield),
           false when non-negative, null when yield_2y or yield_10y is
           missing on that date (no maturity observation that day).
+
+  - name: rate_differential_mart
+    description: >
+      USD-EUR policy rate differential by date, pivoted from
+      stg_interest_rates (1 row per date instead of per series/date).
+      Compares FEDFUNDS (Fed Funds Rate) against ECB_DEPOSIT_RATE (ECB
+      Deposit Facility Rate) — the two overnight/policy rates available,
+      excluding the EURIBOR term rates. Base input for NDF pricing.
+    columns:
+      - name: rate_date
+        description: Calendar date of the observation.
+        tests:
+          - unique
+          - not_null
+      - name: usd_policy_rate
+        description: Fed Funds Rate (FEDFUNDS) on rate_date, in percent.
+      - name: eur_policy_rate
+        description: ECB Deposit Facility Rate (ECB_DEPOSIT_RATE) on rate_date, in percent.
+      - name: usd_eur_differential
+        description: >
+          usd_policy_rate minus eur_policy_rate, in percentage points. Null
+          when either policy rate is missing on that date.

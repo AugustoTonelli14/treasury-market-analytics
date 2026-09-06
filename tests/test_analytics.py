@@ -93,6 +93,27 @@ def test_detect_inversions_treats_null_as_not_inverted():
     assert result.iloc[0]["start_date"] == pd.Timestamp("2024-01-02")
 
 
+def test_detect_inversions_splits_on_null_inside_inverted_run():
+    # A missing observation (null is_inverted) in the middle of an otherwise
+    # inverted run is NOT bridged — it's treated as "not inverted" like any
+    # other gap, so the run splits into two periods. See the docstring note
+    # in detect_inversions: we don't assume the curve stayed inverted on a
+    # day with no data.
+    df = _yield_curve_df(
+        [
+            ("2024-01-01", -0.1, True),
+            ("2024-01-02", None, None),
+            ("2024-01-03", -0.2, True),
+        ]
+    )
+
+    result = yield_curve.detect_inversions(df)
+
+    assert len(result) == 2
+    assert result.iloc[0]["start_date"] == result.iloc[0]["end_date"] == pd.Timestamp("2024-01-01")
+    assert result.iloc[1]["start_date"] == result.iloc[1]["end_date"] == pd.Timestamp("2024-01-03")
+
+
 def test_detect_inversions_counts_calendar_gap_across_weekend():
     # Friday and the following Monday are trading-day-contiguous even though
     # two calendar days (Sat/Sun) separate them.
@@ -135,3 +156,46 @@ def test_load_yield_curve_reads_mart_table(tmp_path):
 
     assert len(result) == 1
     assert result.iloc[0]["is_inverted"]
+
+
+def test_load_yield_curve_raises_for_missing_db(tmp_path):
+    missing_path = tmp_path / "does-not-exist.duckdb"
+
+    try:
+        yield_curve.load_yield_curve(missing_path)
+        raise AssertionError("expected FileNotFoundError")
+    except FileNotFoundError as exc:
+        assert str(missing_path) in str(exc)
+
+
+# --- build_inversion_report ---
+def test_build_inversion_report_end_to_end(tmp_path):
+    db_path = tmp_path / "test.duckdb"
+    conn = duckdb.connect(str(db_path))
+    conn.execute(
+        """
+        create table yield_curve_mart (
+            rate_date date,
+            yield_1m double,
+            yield_2y double,
+            yield_10y double,
+            spread_2y_10y double,
+            is_inverted boolean
+        )
+        """
+    )
+    conn.execute(
+        """
+        insert into yield_curve_mart values
+            ('2024-01-01', 5.3, 4.0, 4.1, 0.1, false),
+            ('2024-01-02', 5.3, 4.0, 3.9, -0.1, true),
+            ('2024-01-03', 5.3, 4.0, 3.8, -0.2, true)
+        """
+    )
+    conn.close()
+
+    result = yield_curve.build_inversion_report(db_path)
+
+    assert len(result) == 1
+    assert result.iloc[0]["start_date"] == pd.Timestamp("2024-01-02")
+    assert result.iloc[0]["end_date"] == pd.Timestamp("2024-01-03")

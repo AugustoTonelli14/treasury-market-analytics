@@ -16,9 +16,6 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-# Constants
-DUCKDB_PATH = Path(os.getenv("DUCKDB_PATH", "outputs/treasury.duckdb"))
-
 INVERSION_COLUMNS = [
     "start_date",
     "end_date",
@@ -29,9 +26,15 @@ INVERSION_COLUMNS = [
 
 
 # Public functions (used outside this module)
-def load_yield_curve(db_path: Path = DUCKDB_PATH) -> pd.DataFrame:
+def load_yield_curve(db_path: Path | None = None) -> pd.DataFrame:
     """Read rate_date, yields, spread_2y_10y and is_inverted from yield_curve_mart."""
-    conn = duckdb.connect(str(db_path), read_only=True)
+    path = db_path or Path(os.getenv("DUCKDB_PATH", "outputs/treasury.duckdb"))
+    if not path.exists():
+        raise FileNotFoundError(
+            f"DuckDB database not found at {path}. Run `make model` (or the full "
+            "`make ingest transform model` pipeline) to build it first."
+        )
+    conn = duckdb.connect(str(path), read_only=True)
     try:
         yield_curve = conn.execute(
             """
@@ -42,7 +45,7 @@ def load_yield_curve(db_path: Path = DUCKDB_PATH) -> pd.DataFrame:
         ).fetchdf()
     finally:
         conn.close()
-    logger.info("Loaded %d yield curve observations from %s", len(yield_curve), db_path)
+    logger.info("Loaded %d yield curve observations from %s", len(yield_curve), path)
     return yield_curve
 
 
@@ -52,6 +55,12 @@ def detect_inversions(yield_curve: pd.DataFrame) -> pd.DataFrame:
     Contiguity is measured by position in the full (business-day) date grain
     passed in, not by calendar-day gaps, so weekends/holidays between two
     trading days don't split a single inversion into separate periods.
+
+    A null is_inverted (missing yield_2y or yield_10y on that date) is
+    treated as "not inverted" rather than being carried over from
+    neighboring rows. If it falls in the middle of an otherwise-inverted
+    run, that run is split into two separate periods rather than bridged —
+    we don't assume the curve stayed inverted on a day with no observation.
     """
     ordered = yield_curve.sort_values("rate_date").reset_index(drop=True)
     is_inverted = ordered["is_inverted"].astype("boolean").fillna(False)
@@ -76,7 +85,7 @@ def detect_inversions(yield_curve: pd.DataFrame) -> pd.DataFrame:
     return periods[INVERSION_COLUMNS]
 
 
-def build_inversion_report(db_path: Path = DUCKDB_PATH) -> pd.DataFrame:
+def build_inversion_report(db_path: Path | None = None) -> pd.DataFrame:
     """Load the yield curve from DuckDB and return its detected inversion periods."""
     yield_curve = load_yield_curve(db_path)
     inversions = detect_inversions(yield_curve)

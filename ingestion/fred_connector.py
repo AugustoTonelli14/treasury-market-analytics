@@ -96,14 +96,15 @@ def _request_with_retry(
             _validate_response(response)
             return response
         except (requests.RequestException, ValueError) as exc:
-            last_error = exc
+            safe_message = _redact_api_key(str(exc), params.get("api_key"))
+            last_error = type(exc)(safe_message)
             wait = backoff_factor ** (attempt - 1)
             logger.warning(
                 "Attempt %d/%d failed for %s (%s). Retrying in %.1fs.",
                 attempt,
                 max_retries,
                 params.get("series_id", url),
-                exc,
+                safe_message,
                 wait,
             )
             if attempt < max_retries:
@@ -113,6 +114,19 @@ def _request_with_retry(
         "All %d attempts failed for series %s", max_retries, params.get("series_id", url)
     )
     raise last_error
+
+
+def _redact_api_key(text: str, api_key: str | None) -> str:
+    """Replace the FRED API key with a placeholder so it never reaches logs.
+
+    A failed request's exception message (from requests/urllib3) typically
+    includes the full request URL, query string and all -- so the API key
+    would otherwise end up in logs on every transient failure, which is
+    exactly what the retry logic here is built to handle.
+    """
+    if not api_key:
+        return text
+    return text.replace(api_key, "[REDACTED]")
 
 
 def _validate_response(response: requests.Response) -> None:

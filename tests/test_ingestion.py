@@ -104,6 +104,30 @@ def test_fred_request_with_retry_raises_after_exhausting_attempts(monkeypatch):
     assert mock_get.call_count == fred_connector.MAX_RETRIES
 
 
+def test_fred_request_with_retry_redacts_api_key_from_raised_error(monkeypatch, caplog):
+    monkeypatch.setattr(fred_connector.time, "sleep", lambda _seconds: None)
+    leaky_message = (
+        "HTTPSConnectionPool: Max retries exceeded with url: "
+        "/fred/series/observations?series_id=DGS10&api_key=SUPERSECRET123"
+    )
+    mock_get = Mock(side_effect=requests.exceptions.ConnectionError(leaky_message))
+    monkeypatch.setattr(fred_connector.requests, "get", mock_get)
+
+    with caplog.at_level("WARNING"), pytest.raises(requests.exceptions.ConnectionError) as exc_info:
+        fred_connector._request_with_retry(
+            fred_connector.FRED_BASE_URL,
+            {"series_id": "DGS10", "api_key": "SUPERSECRET123"},
+        )
+
+    assert "SUPERSECRET123" not in str(exc_info.value)
+    assert "[REDACTED]" in str(exc_info.value)
+    assert "SUPERSECRET123" not in caplog.text
+
+
+def test_redact_api_key_leaves_text_unchanged_without_key():
+    assert fred_connector._redact_api_key("some error", None) == "some error"
+
+
 def test_fred_fetch_all_series_skips_failures(monkeypatch):
     def fake_fetch(series_id, **_kwargs):
         if series_id == "BAD":

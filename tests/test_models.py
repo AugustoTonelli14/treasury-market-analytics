@@ -84,6 +84,20 @@ def test_build_dim_geography_dedupes_by_country():
     assert set(dim_geography["geography_key"]) == {"United States", "Brazil"}
 
 
+def test_build_dim_geography_united_states_row_is_consistent_across_series():
+    # DGS10 (FRED) and EURUSD_SPOT (ECB) both map to country="United States"
+    # in SERIES_CATALOG. If their region strings ever drift apart again
+    # ("N. America" vs "North America"), build_dim_geography's dedupe (which
+    # compares whole rows) would silently emit two "United States" rows
+    # instead of one, breaking the "1 row per country" grain.
+    dim_series = model.build_dim_series(["DGS10", "EURUSD_SPOT"])
+
+    dim_geography = model.build_dim_geography(dim_series)
+
+    us_rows = dim_geography[dim_geography["geography_key"] == "United States"]
+    assert len(us_rows) == 1
+
+
 # --- build_fact_market_rates ---
 def test_build_fact_market_rates_computes_changes_and_keys():
     series = {"DGS10": _series_df("DGS10", ["2024-01-01", "2024-01-02"], [4.0, 4.5])}

@@ -33,7 +33,7 @@ SERIES_CATALOG: dict[str, tuple[str, str, str, str, str, str]] = {
     "EURIBOR_3M": ("Euribor 3-Month", "interest_rate", "EUR", "Euro Area", "Europe", "EUR"),
     "EURIBOR_6M": ("Euribor 6-Month", "interest_rate", "EUR", "Euro Area", "Europe", "EUR"),
     "EURIBOR_12M": ("Euribor 12-Month", "interest_rate", "EUR", "Euro Area", "Europe", "EUR"),
-    "EURUSD_SPOT": ("EUR/USD Spot Rate", "fx_rate", "USD", "United States", "North America", "USD"),
+    "EURUSD_SPOT": ("EUR/USD Spot Rate", "fx_rate", "USD", "United States", "N. America", "USD"),
     "ECB_DEPOSIT_RATE": (
         "ECB Deposit Facility Rate",
         "interest_rate",

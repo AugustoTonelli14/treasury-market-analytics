@@ -28,8 +28,8 @@ SERIES_IDS = [
     "DGS2",  # US 2-Year Treasury Yield
     "DGS1MO",  # US 1-Month Treasury Yield
     "DEXUSEU",  # USD/EUR Exchange Rate
-    "DEXUSJP",  # USD/JPY Exchange Rate
-    "DEXUSBR",  # USD/BRL Exchange Rate
+    "DEXJPUS",  # USD/JPY Exchange Rate (FRED quotes JPY per USD)
+    "DEXBZUS",  # USD/BRL Exchange Rate (FRED quotes BRL per USD)
     "FEDFUNDS",  # Federal Funds Rate
 ]
 

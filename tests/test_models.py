@@ -76,7 +76,7 @@ def test_build_dim_series_falls_back_to_bis_defaults_for_unknown_series():
 
 # --- build_dim_geography ---
 def test_build_dim_geography_dedupes_by_country():
-    dim_series = model.build_dim_series(["DGS10", "DGS2", "DEXUSBR"])
+    dim_series = model.build_dim_series(["DGS10", "DGS2", "DEXBZUS"])
 
     dim_geography = model.build_dim_geography(dim_series)
 

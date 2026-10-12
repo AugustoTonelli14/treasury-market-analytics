@@ -197,7 +197,7 @@ def test_load_rate_fx_joins_on_date_and_filters_series(tmp_path):
     conn.execute(
         """
         insert into fx_analytics_mart values
-            ('DEXUSBR_1', '2024-01-02', 'DEXUSBR', 'USD/BRL', 'BRL', 'fred',
+            ('DEXBZUS_1', '2024-01-02', 'DEXBZUS', 'USD/BRL', 'BRL', 'fred',
              5.0, null, null, null, 0.01, 0.02),
             ('DEXUSEU_1', '2024-01-02', 'DEXUSEU', 'USD/EUR', 'EUR', 'fred',
              1.1, null, null, null, 0.005, 0.01)
@@ -236,9 +236,9 @@ def test_build_correlation_report_end_to_end(tmp_path):
     )
     fx_rows = [
         (
-            f"DEXUSBR_{i}",
+            f"DEXBZUS_{i}",
             f"2024-01-{i:02d}",
-            "DEXUSBR",
+            "DEXBZUS",
             "USD/BRL",
             "BRL",
             "fred",

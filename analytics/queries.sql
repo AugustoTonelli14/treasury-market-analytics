@@ -35,7 +35,7 @@ select
     rate_date,
     rolling_volatility_30d
 from fx_analytics_mart
-where series_id in ('DEXUSEU', 'DEXUSBR')
+where series_id in ('DEXUSEU', 'DEXBZUS')
 order by series_id, rate_date;
 
 -- name: fx_volatility_eur_usd_vs_usd_brl_summary
@@ -48,6 +48,6 @@ select
     min(rolling_volatility_30d) as min_volatility_30d,
     max(rolling_volatility_30d) as max_volatility_30d
 from fx_analytics_mart
-where series_id in ('DEXUSEU', 'DEXUSBR')
+where series_id in ('DEXUSEU', 'DEXBZUS')
 group by series_id
 order by series_id;

@@ -86,12 +86,12 @@ def test_add_rolling_zscore_is_independent_per_series():
     # back into eur's 35 rows and produce a non-null rolling_mean_return_30d
     # for jpy; correctly isolated per series, jpy must stay entirely null.
     eur = _fx_analytics_df("DEXUSEU", 35, returns={34: 3.5})
-    jpy = _fx_analytics_df("DEXUSJP", 10)
+    jpy = _fx_analytics_df("DEXJPUS", 10)
     fx = pd.concat([eur, jpy], ignore_index=True)
 
     result = fx_volatility.add_rolling_zscore(fx)
 
-    jpy_means = result[result["series_id"] == "DEXUSJP"]["rolling_mean_return_30d"]
+    jpy_means = result[result["series_id"] == "DEXJPUS"]["rolling_mean_return_30d"]
     assert jpy_means.isna().all()
 
 

@@ -5,7 +5,7 @@ rate differential (rate_differential_mart) with USD/BRL FX data
 USD/BRL, on both levels and rate-change basis.
 
 BRL has no policy rate series ingested (see modeling/model.py's
-SERIES_CATALOG), so "BRL" here is USD/BRL FX (DEXUSBR) rather than a BRL
+SERIES_CATALOG), so "BRL" here is USD/BRL FX (DEXBZUS) rather than a BRL
 policy rate — this directly answers the business question "Qual a
 correlação entre o Fed Funds Rate e o USD/BRL?" instead of a rate-vs-rate
 differential.
@@ -23,7 +23,7 @@ load_dotenv()
 
 logger = logging.getLogger(__name__)
 
-USD_BRL_SERIES_ID = "DEXUSBR"
+USD_BRL_SERIES_ID = "DEXBZUS"
 MIN_CHANGE_OBSERVATIONS_WARNING = 5
 
 

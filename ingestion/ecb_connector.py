@@ -47,9 +47,11 @@ def fetch_series(
 
     params = {
         "startPeriod": start_date or os.getenv("START_DATE", "2015-01-01"),
-        "endPeriod": end_date or os.getenv("END_DATE", ""),
         "format": "csvdata",
     }
+    resolved_end_date = end_date or os.getenv("END_DATE")
+    if resolved_end_date:
+        params["endPeriod"] = resolved_end_date
     url = f"{ECB_BASE_URL}/{flow_ref}/{series_key}"
 
     logger.info("Requesting series %s from ECB SDW", series_id)

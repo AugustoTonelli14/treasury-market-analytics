@@ -43,6 +43,45 @@ def test_clean_series_drops_duplicates_keeping_last():
     assert cleaned.loc[cleaned["date"] == "2024-01-01", "value"].item() == 9.0
 
 
+def test_clean_series_preserves_distinct_series_sharing_the_same_date():
+    """Regression test for BIS-style files: many distinct series_id values
+    sharing one file (and the same dates across series). Deduping on date
+    alone used to collapse all of them down to one row per date, keeping
+    whichever series happened to sort last -- the dedupe key must include
+    series_id, and each row's own series_id must survive, not be overwritten
+    by the file-level series_id this function is called with."""
+    df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2024-01-01", "2024-01-01", "2024-01-02"]),
+            "value": [1.0, 2.0, 3.0],
+            "series_id": ["BIS_SERIES_A", "BIS_SERIES_B", "BIS_SERIES_A"],
+        }
+    )
+
+    cleaned = transform.clean_series(df, "BIS_OTC_DERIV")
+
+    assert len(cleaned) == 3
+    assert set(cleaned["series_id"]) == {"BIS_SERIES_A", "BIS_SERIES_B"}
+
+
+def test_clean_series_dedupes_same_series_same_date_keeping_last():
+    """A true duplicate -- same series_id *and* same date -- must still
+    collapse to one row, keeping the last value (unlike two distinct series
+    that merely share a date, see the test above)."""
+    df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2024-01-01", "2024-01-01", "2024-01-01"]),
+            "value": [1.0, 9.0, 2.0],
+            "series_id": ["BIS_SERIES_A", "BIS_SERIES_A", "BIS_SERIES_B"],
+        }
+    )
+
+    cleaned = transform.clean_series(df, "BIS_OTC_DERIV")
+
+    assert len(cleaned) == 2
+    assert cleaned.loc[cleaned["series_id"] == "BIS_SERIES_A", "value"].item() == 9.0
+
+
 def test_clean_series_sorts_chronologically():
     df = pd.DataFrame(
         {

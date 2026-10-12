@@ -33,13 +33,23 @@ def load_raw_series(series_id: str, input_dir: Path = RAW_DIR) -> pd.DataFrame:
 
 
 def clean_series(df: pd.DataFrame, series_id: str) -> pd.DataFrame:
-    """Clean one series: drop null values, dedupe by date, sort, cast dtypes."""
+    """Clean one series file: drop null values, dedupe, sort, cast dtypes.
+
+    Dedupes on (date, series_id) rather than date alone, and keeps each row's
+    own series_id instead of overwriting it with this function's series_id
+    argument (the raw CSV's filename/stem). FRED and ECB files hold exactly
+    one series_id per file, so that distinction is a no-op for them. BIS
+    files hold many distinct series_id values sharing the same file (and the
+    same dates across series) -- deduping on date alone silently collapsed
+    them down to one row per date, keeping whichever series happened to sort
+    last; overwriting series_id afterwards would have hidden that collapse
+    by making every surviving row look like a single series again.
+    """
     cleaned = df.dropna(subset=["date", "value"]).copy()
-    cleaned = cleaned.drop_duplicates(subset=["date"], keep="last")
+    cleaned = cleaned.drop_duplicates(subset=["date", "series_id"], keep="last")
     cleaned = cleaned.sort_values("date").reset_index(drop=True)
     cleaned["date"] = cleaned["date"].astype("datetime64[ns]")
     cleaned["value"] = cleaned["value"].astype("float64")
-    cleaned["series_id"] = series_id
 
     validate_schema(cleaned, series_id)
     return cleaned[["date", "value", "series_id"]]

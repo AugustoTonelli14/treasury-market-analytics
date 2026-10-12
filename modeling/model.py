@@ -1,7 +1,7 @@
 """
 Modeling layer — builds a dimensional star schema (fact_market_rates,
-dim_date, dim_series, dim_geography) from the cleaned Parquet series in
-data/processed/ and loads it into a DuckDB database.
+dim_date, dim_series, dim_geography, fact_derivatives) from the cleaned
+Parquet series in data/processed/ and loads it into a DuckDB database.
 """
 
 import logging
@@ -12,7 +12,7 @@ import duckdb
 import pandas as pd
 from dotenv import load_dotenv
 
-from ingestion import ecb_connector, fred_connector
+from ingestion import bis_loader, ecb_connector, fred_connector
 
 load_dotenv()
 
@@ -47,8 +47,15 @@ SERIES_CATALOG: dict[str, tuple[str, str, str, str, str, str]] = {
 FRED_SERIES_IDS = set(fred_connector.SERIES_IDS)
 ECB_SERIES_IDS = set(ecb_connector.SERIES.keys())
 
-# BIS series_ids are dynamically generated dimension codes (not enumerable
-# ahead of time), so anything outside the catalog above falls back to these.
+# BIS files hold periodic survey data (semi-annual / triennial), identified
+# by a composite, dynamically generated series_id -- a different grain and
+# series shape than the daily market-rate series above, so they're routed to
+# their own fact_derivatives table instead of dim_series/fact_market_rates
+# (see build_star_schema).
+BIS_DATASET_IDS = set(bis_loader.DATASETS.keys())
+
+# Catalog fallback for any series_id that is still unrecognized (outside the
+# catalog above and not a known BIS dataset either).
 DEFAULT_GEOGRAPHY = ("Global", "Global", None)
 
 
@@ -122,19 +129,53 @@ def build_fact_market_rates(
     return fact[columns]
 
 
+def build_fact_derivatives(derivative_series: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Build fact_derivatives: one row per BIS series_id per date.
+
+    Kept separate from fact_market_rates because BIS data is a different
+    grain (periodic survey -- semi-annual / triennial -- not daily) and a
+    different series shape (a composite, dynamically generated series_id,
+    not a single currency/country series like dim_series models). date_key
+    still resolves against the shared dim_date (built from the union of all
+    series' dates, BIS included), but there's no series_key/geography_key:
+    decoding the BIS series_id's colon-delimited dimension codes into a
+    currency/country would require reference data this project doesn't
+    ingest. change_1d/1w/1m are omitted too -- they assume daily spacing,
+    which doesn't hold for semi-annual/triennial observations.
+    """
+    columns = ["date_key", "dataset", "series_id", "value"]
+    if not derivative_series:
+        return pd.DataFrame(columns=columns)
+
+    rows = []
+    for dataset, df in derivative_series.items():
+        enriched = df.copy()
+        enriched["date_key"] = enriched["date"].dt.strftime("%Y%m%d").astype("int64")
+        enriched["dataset"] = dataset
+        rows.append(enriched)
+
+    fact = pd.concat(rows, ignore_index=True)
+    return fact[columns]
+
+
 def build_star_schema(input_dir: Path = PROCESSED_DIR) -> dict[str, pd.DataFrame]:
     """Load processed series and assemble the full star schema."""
     series = load_processed_series(input_dir)
+    market_series = {sid: df for sid, df in series.items() if sid not in BIS_DATASET_IDS}
+    derivative_series = {sid: df for sid, df in series.items() if sid in BIS_DATASET_IDS}
+
     dim_date = build_dim_date(series)
-    dim_series = build_dim_series(list(series.keys()))
+    dim_series = build_dim_series(list(market_series.keys()))
     dim_geography = build_dim_geography(dim_series)
-    fact_market_rates = build_fact_market_rates(series, dim_series)
+    fact_market_rates = build_fact_market_rates(market_series, dim_series)
+    fact_derivatives = build_fact_derivatives(derivative_series)
 
     return {
         "dim_date": dim_date,
         "dim_series": dim_series,
         "dim_geography": dim_geography,
         "fact_market_rates": fact_market_rates,
+        "fact_derivatives": fact_derivatives,
     }
 
 

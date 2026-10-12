@@ -7,6 +7,7 @@ pytest's tmp_path, no real data/processed or outputs directories are touched.
 import duckdb
 import pandas as pd
 
+from ingestion import bis_loader
 from modeling import model
 
 
@@ -125,14 +126,80 @@ def test_build_fact_market_rates_empty_series_returns_empty_frame():
     ]
 
 
+# --- build_fact_derivatives ---
+def test_build_fact_derivatives_preserves_distinct_series_sharing_the_same_date():
+    # Mirrors the real BIS shape: many distinct series_id values in one
+    # dataset, sharing the same observation dates.
+    bis_df = pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2024-01-01", "2024-01-01", "2024-07-01"]),
+            "value": [100.0, 200.0, 150.0],
+            "series_id": ["A:1:USD", "B:2:EUR", "A:1:USD"],
+        }
+    )
+
+    fact = model.build_fact_derivatives({"BIS_OTC_DERIV": bis_df})
+
+    assert len(fact) == 3
+    assert set(fact["series_id"]) == {"A:1:USD", "B:2:EUR"}
+    assert (fact["dataset"] == "BIS_OTC_DERIV").all()
+    assert fact.loc[fact["series_id"] == "A:1:USD", "date_key"].tolist() == [20240101, 20240701]
+
+
+def test_build_fact_derivatives_empty_dict_returns_empty_frame():
+    fact = model.build_fact_derivatives({})
+
+    assert fact.empty
+    assert list(fact.columns) == ["date_key", "dataset", "series_id", "value"]
+
+
 # --- build_star_schema ---
-def test_build_star_schema_assembles_all_four_tables(tmp_path):
+def test_build_star_schema_assembles_all_five_tables(tmp_path):
     _series_df("DGS10", ["2024-01-01"], [4.0]).to_parquet(tmp_path / "DGS10.parquet")
 
     tables = model.build_star_schema(tmp_path)
 
-    assert set(tables.keys()) == {"dim_date", "dim_series", "dim_geography", "fact_market_rates"}
+    assert set(tables.keys()) == {
+        "dim_date",
+        "dim_series",
+        "dim_geography",
+        "fact_market_rates",
+        "fact_derivatives",
+    }
     assert len(tables["fact_market_rates"]) == 1
+    assert tables["fact_derivatives"].empty
+
+
+def test_build_star_schema_routes_bis_datasets_to_fact_derivatives_with_zero_null_keys(tmp_path):
+    """End-to-end guard for the bug this fix addresses: BIS datasets (many
+    series_id values per file, sharing dates with regular market-rate
+    series) must never reach fact_market_rates/dim_series, and neither fact
+    table may come out with null foreign keys."""
+    bis_dataset_id = next(iter(bis_loader.DATASETS))
+    _series_df("DGS10", ["2024-01-01", "2024-01-02"], [4.0, 4.1]).to_parquet(
+        tmp_path / "DGS10.parquet"
+    )
+    pd.DataFrame(
+        {
+            "date": pd.to_datetime(["2024-01-01", "2024-01-01"]),
+            "value": [1000.0, 2000.0],
+            "series_id": ["A:1:USD", "B:2:EUR"],
+        }
+    ).to_parquet(tmp_path / f"{bis_dataset_id}.parquet")
+
+    tables = model.build_star_schema(tmp_path)
+
+    assert set(tables["dim_series"]["series_id"]) == {"DGS10"}
+    assert len(tables["fact_market_rates"]) == 2
+    assert not tables["fact_market_rates"][["series_key", "geography_key"]].isnull().any().any()
+
+    fact_derivatives = tables["fact_derivatives"]
+    assert len(fact_derivatives) == 2
+    assert set(fact_derivatives["series_id"]) == {"A:1:USD", "B:2:EUR"}
+    assert not fact_derivatives.isnull().any().any()
+
+    # fact_derivatives' date_key must resolve against the shared dim_date.
+    assert set(fact_derivatives["date_key"]).issubset(set(tables["dim_date"]["date_key"]))
 
 
 # --- save_to_duckdb ---
